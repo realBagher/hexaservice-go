@@ -1,8 +1,6 @@
 package adapters
 
 import (
-	"errors"
-
 	"github.com/realBagher/hexaservice-go/journal/core"
 )
 
@@ -22,7 +20,7 @@ func (r *InMemoryJournalRepository) CreateJournal(journal core.Journal) (core.Jo
 func (r *InMemoryJournalRepository) GetJournal(id string) (core.Journal, error) {
 	journal, ok := r.journals[id]
 	if !ok {
-		return core.Journal{}, errors.New("journal not found")
+		return core.Journal{}, core.ErrJournalNotFound
 	}
 	return journal, nil
 }

@@ -1,8 +1,6 @@
 package adapters
 
 import (
-	"errors"
-
 	"github.com/realBagher/hexaservice-go/article/core"
 )
 
@@ -22,7 +20,7 @@ func (r *InMemoryArticleRepository) CreateArticle(article core.Article) (core.Ar
 func (r *InMemoryArticleRepository) GetArticleByID(id string) (core.Article, error) {
 	article, ok := r.articles[id]
 	if !ok {
-		return core.Article{}, errors.New("article not found")
+		return core.Article{}, core.ErrArticleNotFound
 	}
 	return article, nil
 }
@@ -33,5 +31,5 @@ func (r *InMemoryArticleRepository) GetArticleByTitle(title string) (core.Articl
 			return article, nil
 		}
 	}
-	return core.Article{}, errors.New("article not found")
+	return core.Article{}, core.ErrArticleNotFound
 }

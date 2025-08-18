@@ -8,22 +8,39 @@ import (
 	"github.com/realBagher/hexaservice-go/article/core"
 )
 
+const testArticleID = "1"
+
 func main() {
+	if err := runDemo(); err != nil {
+		log.Fatalf("Demo failed: %v", err)
+	}
+}
+
+func runDemo() error {
 	repo := adapters.NewInMemoryArticleRepository()
 	service := core.NewArticleService(repo)
 
-	service.CreateArticle(core.Article{
-		ID:        "1",
-		Title:     "Test",
-		Abstract:  "Test for journal Abstract",
-		AuthorID:  "1",
-		JournalID: "1",
-	})
-
-	article, err := service.GetArticleByID("1")
-	if err != nil {
-		log.Fatalf("Error getting article: %v", err)
+	testArticle := core.Article{
+		ID:        testArticleID,
+		Title:     "Test Article",
+		Abstract:  "Test abstract for article",
+		AuthorID:  "author_1",
+		JournalID: "journal_1",
 	}
 
-	fmt.Println(article)
+	// Create article
+	createdArticle, err := service.CreateArticle(testArticle)
+	if err != nil {
+		return fmt.Errorf("failed to create article: %w", err)
+	}
+	fmt.Printf("Created article: %+v\n", createdArticle)
+
+	// Retrieve article
+	retrievedArticle, err := service.GetArticleByID(testArticleID)
+	if err != nil {
+		return fmt.Errorf("failed to retrieve article: %w", err)
+	}
+	fmt.Printf("Retrieved article: %+v\n", retrievedArticle)
+
+	return nil
 }

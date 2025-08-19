@@ -1,24 +1,71 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"log"
+	"net"
 	"os"
+
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/reflection"
 
 	"github.com/realBagher/hexaservice-go/journal/adapters"
 	"github.com/realBagher/hexaservice-go/journal/core"
+	"github.com/realBagher/hexaservice-go/journal/proto"
 )
 
 const (
 	mysqlDSNEnvVar = "MYSQL_DSN"
 	testJournalID  = "1"
 	mysqlJournalID = "mysql_1"
+	grpcPort       = ":50051"
 )
 
+// JournalGRPCServer implements the gRPC server interface
+type JournalGRPCServer struct {
+	proto.UnimplementedJournalServiceServer
+	service *core.JournalService
+}
+
+// NewJournalGRPCServer creates a new gRPC server instance
+func NewJournalGRPCServer(service *core.JournalService) *JournalGRPCServer {
+	return &JournalGRPCServer{service: service}
+}
+
+// GetJournal implements the gRPC GetJournal method
+func (s *JournalGRPCServer) GetJournal(ctx context.Context, req *proto.GetJournalRequest) (*proto.GetJournalResponse, error) {
+	journal, err := s.service.GetJournal(req.Id)
+	if err != nil {
+		return nil, err
+	}
+
+	// Convert core.Journal to proto.Journal
+	protoJournal := &proto.Journal{
+		Id:           journal.ID,
+		Name:         journal.Name,
+		Description:  journal.Description,
+		ImpactFactor: journal.ImpactFactor,
+	}
+
+	return &proto.GetJournalResponse{Journal: protoJournal}, nil
+}
+
 func main() {
+	// Start gRPC server in a separate goroutine
+	go func() {
+		if err := startGRPCServer(); err != nil {
+			log.Fatalf("gRPC server failed: %v", err)
+		}
+	}()
+
+	// Run demo
 	if err := runDemo(); err != nil {
 		log.Fatalf("Demo failed: %v", err)
 	}
+
+	// Keep the main goroutine alive
+	select {}
 }
 
 func runDemo() error {
@@ -35,6 +82,53 @@ func runDemo() error {
 	}
 
 	return nil
+}
+
+func startGRPCServer() error {
+	// Create a repository and service for the gRPC server
+	// Using in-memory repository for simplicity, but could be MySQL based on env var
+	var repo core.JournalRepository
+	if dsn := os.Getenv(mysqlDSNEnvVar); dsn != "" {
+		db, err := adapters.NewMySQLConnection(dsn)
+		if err != nil {
+			log.Printf("Failed to connect to MySQL, falling back to in-memory: %v", err)
+			repo = adapters.NewInMemoryJournalRepository()
+		} else {
+			mysqlRepo := adapters.NewMySQLJournalRepository(db)
+			if err := mysqlRepo.InitializeSchema(); err != nil {
+				log.Printf("Failed to initialize MySQL schema, falling back to in-memory: %v", err)
+				repo = adapters.NewInMemoryJournalRepository()
+			} else {
+				repo = mysqlRepo
+			}
+		}
+	} else {
+		repo = adapters.NewInMemoryJournalRepository()
+	}
+
+	service := core.NewJournalService(repo)
+
+	// Pre-populate with a test journal for the article service to find
+	testJournal := createTestJournal("journal_1")
+	if _, err := service.CreateJournal(testJournal); err != nil {
+		log.Printf("Warning: Failed to create test journal: %v", err)
+	}
+
+	// Create gRPC server
+	grpcServer := grpc.NewServer()
+	journalGRPCServer := NewJournalGRPCServer(service)
+
+	proto.RegisterJournalServiceServer(grpcServer, journalGRPCServer)
+	reflection.Register(grpcServer)
+
+	// Start listening
+	listener, err := net.Listen("tcp", grpcPort)
+	if err != nil {
+		return fmt.Errorf("failed to listen on port %s: %w", grpcPort, err)
+	}
+
+	log.Printf("gRPC server starting on port %s", grpcPort)
+	return grpcServer.Serve(listener)
 }
 
 func demonstrateInMemoryRepository() error {

@@ -1,0 +1,24 @@
+syntax = "proto3";
+
+package journal;
+
+option go_package = "./proto";
+
+message Journal {
+  string id = 1;
+  string name = 2;
+  string description = 3;
+  double impact_factor = 4;
+}
+
+message GetJournalRequest {
+  string id = 1;
+}
+
+message GetJournalResponse {
+  Journal journal = 1;
+}
+
+service JournalService {
+  rpc GetJournal(GetJournalRequest) returns (GetJournalResponse);
+}

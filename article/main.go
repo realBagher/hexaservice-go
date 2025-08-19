@@ -1,12 +1,18 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"os"
+	"time"
+
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 
 	"github.com/realBagher/hexaservice-go/article/adapters"
 	"github.com/realBagher/hexaservice-go/article/core"
+	"github.com/realBagher/hexaservice-go/journal/proto"
 )
 
 const (
@@ -34,7 +40,34 @@ func runDemo() error {
 		}
 	}
 
+	// Example: fetch journal for the test article
+	testArticle := createTestArticle(testArticleID)
+	journal, err := fetchJournal(testArticle.JournalID)
+	if err != nil {
+		return fmt.Errorf("failed to fetch journal: %w", err)
+	}
+	fmt.Printf("Fetched journal using grpc: %+v\n", journal)
+
 	return nil
+}
+
+func fetchJournal(journalID string) (*proto.Journal, error) {
+	conn, err := grpc.Dial("localhost:50051", grpc.WithTransportCredentials(insecure.NewCredentials()))
+	if err != nil {
+		return nil, err
+	}
+	defer conn.Close()
+
+	client := proto.NewJournalServiceClient(conn)
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
+	defer cancel()
+
+	res, err := client.GetJournal(ctx, &proto.GetJournalRequest{Id: journalID})
+	if err != nil {
+		return nil, err
+	}
+	return res.Journal, nil
 }
 
 func demonstrateInMemoryRepository() error {
